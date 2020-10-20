@@ -39,16 +39,24 @@ float measureBattery()
   return measurement;
 }
 
-String ComposeJSONmessage(int id, float temp, float bat)
+int calculatePercentage(float voltage)
+{
+  int result = map(voltage, 3.2, 4.2, 0, 100);
+  return result;
+}
+
+String ComposeJSONmessage(int id, float temp, float bat, int level, int counter)
 {
   String message;
 
-  const size_t capacity = JSON_OBJECT_SIZE(3) + 12;
+  const size_t capacity = JSON_OBJECT_SIZE(5) + 20;
   DynamicJsonDocument doc(capacity);
 
   doc["id"] = id;
   doc["temp"] = roundf(temp * 100) / 100.0;
   doc["bat"] = roundf(bat * 100) / 100.0;
+  doc["lvl"] = level;
+  doc["cnt"] = counter;
 
   serializeJson(doc, message);
 
@@ -93,9 +101,12 @@ void setup()
 
 void loop() 
 {
+  static int counter;
   float temperature = readTemperature();
   float voltage = measureBattery();
-  String message = ComposeJSONmessage(DEVICE_ID, temperature, voltage);
+  int level = calculatePercentage(voltage);
+
+  String message = ComposeJSONmessage(DEVICE_ID, temperature, voltage, level, counter++);
   sendMessage(message);
 
   for(int i = 0; i <= SLEEP_TIME; i++)
