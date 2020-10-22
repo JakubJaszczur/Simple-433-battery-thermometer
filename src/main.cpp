@@ -92,6 +92,8 @@ void sendMessage(String toSend)
 
 void setup() 
 {
+  Serial.begin(115200);
+
   driver.init();
   sensors.begin();
 
@@ -102,12 +104,28 @@ void setup()
 void loop() 
 {
   static int counter;
+  Serial.print("Counter: ");
+  Serial.println(counter);
+
   float temperature = readTemperature();
+  Serial.print("Temperature: ");
+  Serial.println(temperature);
+
   float voltage = measureBattery();
+  Serial.print("Voltage: ");
+  Serial.println(voltage);
+
   int level = calculatePercentage(voltage);
+  Serial.print("Level: ");
+  Serial.println(level);
 
   String message = ComposeJSONmessage(DEVICE_ID, temperature, voltage, level, counter++);
+  Serial.print("Message: ");
+  Serial.println(message);
+
   sendMessage(message);
+
+  Serial.println("Going to sleep");
 
   for(int i = 0; i <= SLEEP_TIME; i++)
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
