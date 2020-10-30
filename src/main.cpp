@@ -2,26 +2,27 @@
 #include "LowPower.h"
 #include <ArduinoJson.h>
 #include <math.h>
-#include <RH_ASK.h>
 #include <SPI.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <SoftwareSerial.h>
 
 #define BATTERY_PIN       A3
 #define REF_VOLTAGE       1.1
 #define DEVICE_ID         150
-#define VOLTAGE_DIVIDER   0.256   // R2/(R1+R2)
-#define SLEEP_TIME        1       // X * 8 sleep time
+#define VOLTAGE_DIVIDER   0.2326   // R2/(R1+R2) (100k + 330k)
+#define SLEEP_TIME        30        // X * 8 sleep time
+#define RX_PIN            3
+#define TX_PIN            4
+#define SET_PIN           5
+#define ONE_WIRE_BUS      2
+#define CONFIG_PIN        9         // set maintenance mode
 
-#define RADIOHEAD_BAUD    2000    // Transmission Speed
-#define RADIOHEAD_TX_PIN  5       // Pin of the 433MHz transmitter
-#define RADIOHEAD_RX_PIN  -1      // Pin of the 433MHz receiver (here not used)
-
-#define ONE_WIRE_BUS 2
-
-RH_ASK driver(RADIOHEAD_BAUD, RADIOHEAD_RX_PIN, RADIOHEAD_TX_PIN);
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
+SoftwareSerial HC12(RX_PIN, TX_PIN); // HC-12 TX Pin, HC-12 RX Pin
+
+int timeToSleep = SLEEP_TIME;
 
 ///////////////////////// FUNCTIONS /////////////////////////
 
@@ -39,13 +40,12 @@ float measureBattery()
   return measurement;
 }
 
-int calculatePercentage(float voltage)
+float calculatePercentage(float voltage, float vmin, float vmax)
 {
-  int result = map(voltage, 3.2, 4.2, 0, 100);
-  return result;
+  return(voltage - vmin) * 100 / (vmax - vmin);
 }
 
-String ComposeJSONmessage(int id, float temp, float bat, int level, int counter)
+String ComposeJSONmessage(int id, float temp, float bat, float level, int counter)
 {
   String message;
 
@@ -55,7 +55,7 @@ String ComposeJSONmessage(int id, float temp, float bat, int level, int counter)
   doc["id"] = id;
   doc["temp"] = roundf(temp * 100) / 100.0;
   doc["bat"] = roundf(bat * 100) / 100.0;
-  doc["lvl"] = level;
+  doc["lvl"] = roundf(level * 1) / 1.0;
   doc["cnt"] = counter;
 
   serializeJson(doc, message);
@@ -71,21 +71,39 @@ float readTemperature()
   return tempC;
 }
 
+void SendCommand(String command)
+{
+  digitalWrite(SET_PIN, LOW);
+  delay(100);
+  HC12.print(command);
+  delay(100);
+  while (HC12.available()) 
+  {           // If HC-12 has data (the AT Command response)
+    Serial.write(HC12.read());         // Send the data to Serial monitor
+  }
+  digitalWrite(SET_PIN, HIGH);
+  delay(100);
+}
+
 void sendMessage(String toSend)
 {
-  char message[toSend.length() + 1];
-  toSend.toCharArray(message, sizeof(message));
-  
-  // eliminate null
-  char data[toSend.length()];
+  SendCommand("AT");
+  Serial.println(toSend);
+  HC12.println(toSend);      // Send that data to HC-12
+  delay(50);
+  SendCommand("AT+SLEEP");
+}
 
-  for(int i = 0; i < (toSend.length()); i ++)
-  {
-    data[i] = message[i];
-  }
+unsigned int CheckMode(unsigned int pin)
+{
+  unsigned int time;
+
+  if(digitalRead(pin) == HIGH)
+    time = SLEEP_TIME;
+  else
+    time = 1;
   
-  driver.send((uint8_t *)data, sizeof(data));
-  driver.waitPacketSent();
+  return time;
 }
 
 ///////////////////////// SETUP /////////////////////////
@@ -93,12 +111,13 @@ void sendMessage(String toSend)
 void setup() 
 {
   Serial.begin(115200);
-
-  driver.init();
+  HC12.begin(9600);               // Serial port to HC12
   sensors.begin();
 
   analogReference(INTERNAL);
   pinMode(BATTERY_PIN, INPUT);
+  pinMode(CONFIG_PIN, INPUT_PULLUP);
+  pinMode(SET_PIN, OUTPUT);
 }
 
 void loop() 
@@ -115,7 +134,7 @@ void loop()
   Serial.print("Voltage: ");
   Serial.println(voltage);
 
-  int level = calculatePercentage(voltage);
+  float level = calculatePercentage(voltage, 3.5, 4.2);
   Serial.print("Level: ");
   Serial.println(level);
 
@@ -125,8 +144,13 @@ void loop()
 
   sendMessage(message);
 
-  Serial.println("Going to sleep");
+  int Timecounter = CheckMode(CONFIG_PIN);
 
-  for(int i = 0; i <= SLEEP_TIME; i++)
+  //Serial.print("Sleep time: ");
+  //Serial.println(Timecounter * 8);
+  //Serial.println("Going to sleep");
+  //delay(500);
+
+  for(int i = 0; i < Timecounter; i++)
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
 }
