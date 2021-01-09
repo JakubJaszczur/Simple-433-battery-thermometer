@@ -17,6 +17,7 @@
 #define SET_PIN           5
 #define ONE_WIRE_BUS      2
 #define CONFIG_PIN        9         // set maintenance mode
+#define A_FACTOR          1.0118    // a = y/x, callibration factor, y = real value, e.g 4.2V, x = value calculated, e.g. 4.15V
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
@@ -26,23 +27,29 @@ int timeToSleep = SLEEP_TIME;
 
 ///////////////////////// FUNCTIONS /////////////////////////
 
-float measureBattery()
+float measureBattery(int iterations)
 {
   float rawVoltage = 0;
 
-  for(int i = 0; i < 5; i ++)
+  analogRead(BATTERY_PIN); //for stable measurements, drop first one
+
+  for(int i = 0; i < iterations; i ++)
   {
-    rawVoltage = analogRead(BATTERY_PIN); //for stable measurements
+    rawVoltage = rawVoltage + analogRead(BATTERY_PIN);
   }
 
-  float measurement = ((rawVoltage / 1023) * REF_VOLTAGE) / VOLTAGE_DIVIDER;
+  rawVoltage = rawVoltage / iterations;
+
+  float measurement = (((rawVoltage / 1023) * REF_VOLTAGE) / VOLTAGE_DIVIDER) * A_FACTOR;
 
   return measurement;
 }
 
 float calculatePercentage(float voltage, float vmin, float vmax)
 {
-  return(voltage - vmin) * 100 / (vmax - vmin);
+  float result = (voltage - vmin) * 100 / (vmax - vmin);
+  
+	return result >= 100 ? 100 : result;
 }
 
 String ComposeJSONmessage(int id, float temp, float bat, float level, int counter)
@@ -54,7 +61,7 @@ String ComposeJSONmessage(int id, float temp, float bat, float level, int counte
 
   doc["id"] = id;
   doc["temp"] = roundf(temp * 100) / 100.0;
-  doc["bat"] = roundf(bat * 100) / 100.0;
+  doc["bat"] = roundf(bat * 1000) / 1000.0;
   doc["lvl"] = roundf(level * 1) / 1.0;
   doc["cnt"] = counter;
 
@@ -130,11 +137,11 @@ void loop()
   Serial.print("Temperature: ");
   Serial.println(temperature);
 
-  float voltage = measureBattery();
+  float voltage = measureBattery(5);
   Serial.print("Voltage: ");
   Serial.println(voltage);
 
-  float level = calculatePercentage(voltage, 3.5, 4.2);
+  float level = calculatePercentage(voltage, 3.2, 4.2);
   Serial.print("Level: ");
   Serial.println(level);
 
