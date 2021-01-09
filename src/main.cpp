@@ -47,8 +47,9 @@ float measureBattery(int iterations)
 
 float calculatePercentage(float voltage, float vmin, float vmax)
 {
-  float result = (voltage - vmin) * 100 / (vmax - vmin);
-  
+  //float result = (voltage - vmin) * 100 / (vmax - vmin);
+  float result = 101.0124 + (0.0342853 - 101.0124) / (1 + pow(voltage / 3.668452, 30.41399)); // equation to calculate percentage (Li-ion)
+
 	return result >= 100 ? 100 : result;
 }
 
