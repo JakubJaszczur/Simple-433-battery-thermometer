@@ -39,7 +39,7 @@ Value = R2/(R1+R2)
 
 Use 1% or better resistors. Good practice is to measure real resistance values, and use them to calculate divider (instead theoritical values).
 
-![](Pictures/Divider.png)
+![](Pictures/Divider.PNG)
 
 SLEEP_TIME - this value x 8s (minimum sleep time) = sleep time / measurements period  
 
