@@ -7,17 +7,17 @@
 #include <DallasTemperature.h>
 #include <SoftwareSerial.h>
 
-#define BATTERY_PIN       A3
+#define BATTERY_PIN       A0
 #define REF_VOLTAGE       1.1
-#define DEVICE_ID         150
-#define VOLTAGE_DIVIDER   0.2326   // R2/(R1+R2) (100k + 330k)
+#define DEVICE_ID         151
+#define VOLTAGE_DIVIDER   0.069767  // R2/(R1+R2) (100k + 330k)
 #define SLEEP_TIME        30        // X * 8 sleep time
 #define RX_PIN            3
 #define TX_PIN            4
 #define SET_PIN           5
 #define ONE_WIRE_BUS      2
-#define CONFIG_PIN        9         // set maintenance mode
-#define A_FACTOR          1.0118    // a = y/x, callibration factor, y = real value, e.g 4.2V, x = value calculated, e.g. 4.15V
+#define CONFIG_PIN        9           // set maintenance mode
+#define A_FACTOR          0.98          // a = y/x, callibration factor, y = real value, e.g 4.2V, x = value calculated, e.g. 4.15V
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
@@ -31,14 +31,22 @@ float measureBattery(int iterations)
 {
   float rawVoltage = 0;
 
-  analogRead(BATTERY_PIN); //for stable measurements, drop first one
+  //Serial.println(analogRead(BATTERY_PIN)); //for stable measurements, drop first one
 
   for(int i = 0; i < iterations; i ++)
   {
     rawVoltage = rawVoltage + analogRead(BATTERY_PIN);
+    Serial.print("test: ");
+    Serial.println(rawVoltage);
   }
 
+  Serial.print("raw before div: ");
+  Serial.println(rawVoltage);
+
   rawVoltage = rawVoltage / iterations;
+
+  Serial.print("raw: ");
+  Serial.println(rawVoltage); 
 
   float measurement = (((rawVoltage / 1023) * REF_VOLTAGE) / VOLTAGE_DIVIDER) * A_FACTOR;
 
@@ -48,8 +56,8 @@ float measureBattery(int iterations)
 float calculatePercentage(float voltage, float vmin, float vmax)
 {
   //float result = (voltage - vmin) * 100 / (vmax - vmin);  //Linear
-  float result = 101.0124 + (0.0342853 - 101.0124) / (1 + pow(voltage / 3.668452, 30.41399)); // equation to calculate percentage (Li-ion)
-  //float result = 241.3572 + (-2.882515 - 241.3572) / (1 + pow(voltage / 12.85126, 22.82219)); // equation to calculate percentage (Acid car battery)
+  //float result = 101.0124 + (0.0342853 - 101.0124) / (1 + pow(voltage / 3.668452, 30.41399)); // equation to calculate percentage (Li-ion)
+  float result = 241.3572 + (-2.882515 - 241.3572) / (1 + pow(voltage / 12.85126, 22.82219)); // equation to calculate percentage (Acid car battery)
 
 	return result >= 100 ? 100 : result;
 }
@@ -122,7 +130,7 @@ void setup()
   Serial.begin(115200);
   HC12.begin(9600);               // Serial port to HC12
   sensors.begin();
-
+  
   analogReference(INTERNAL);
   pinMode(BATTERY_PIN, INPUT);
   pinMode(CONFIG_PIN, INPUT_PULLUP);
